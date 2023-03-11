@@ -61,6 +61,7 @@ function line_to_xml($line, $program, $doc, $order){
 }
 
 //compares argument with expected type using determine_arg_type() function
+//return: 0 on success, 1 on failure
 function check_arg($arg, $type){
     $type_value = determine_arg_type($arg);
     if ($type_value[0]==$type){
@@ -124,6 +125,12 @@ function determine_arg_type($arg){
 
         return $type_value;
     }
+    elseif (preg_match("/^string\z|^int\z|^bool\z/", $arg)){
+        $type_value[0] = "type";
+        $type_value[1] = $arg;
+        
+        return $type_value;
+    }
     elseif (preg_match("/^int@/", $arg)){
         $type_value[0] = "int";
         preg_match("/(?<=@).*/", $arg, $match);
@@ -178,6 +185,7 @@ while ($f = fgets(STDIN)){
         continue;
     }
 
+    //trim whitespace, explode into array
     $f = rtrim($f);
     $f = trim(preg_replace('/\s\s+/', ' ', str_replace("\n", " ", $f)));
     $array = explode(' ', $f);
@@ -193,6 +201,8 @@ while ($f = fgets(STDIN)){
         }
     }
     
+    //each case corresponds with an instruction
+    //instructions with equal argument types are grouped together
     switch(strtoupper($array[0])){
         //no args
         case "CREATEFRAME":
@@ -290,6 +300,7 @@ while ($f = fgets(STDIN)){
         //<var><type>
         case "READ":
             $order++;
+            line_to_xml($array, $program, $doc, $order);
             if (count($array)!=3){
                 exit(23);
             }
@@ -297,23 +308,7 @@ while ($f = fgets(STDIN)){
             check_var($array[1]);
 
             check_type($array[2]);
-            /*
-            if ($array[2] != "string"){
-                if ($array[2] != "int"){
-                    if ($array[2] != "bool"){
-                        exit(23);
-                    }
-                }
-            }
-            */
-            $newline = $program->appendChild($doc->createElement('instruction'));
-            $newline->setAttribute("order", $order);
-            $newline->setAttribute("opcode", $array[0]);
-            $type_value = determine_arg_type($array[1]);
-            $arg1 = $newline->appendChild($doc->createElement('arg1', rtrim($type_value[1])));
-            $arg1->setAttribute('type', $type_value[0]);
-            $arg2 = $newline->appendChild($doc->createElement('arg2', $array[2]));
-            $arg2->setAttribute('type', 'type');
+        
             break;
         //<label><symb1><symb2>
         case "JUMPIFEQ":
