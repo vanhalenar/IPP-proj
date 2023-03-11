@@ -13,6 +13,11 @@ $program = $doc->appendChild($doc->createElement('program'));
 $program->setAttribute("language", "IPPcode23");
 
 if (count($argv)>1){
+
+    if (count($argv)!=2){
+        exit(10);
+    }
+
     if ($argv[1] == "--help"){
         
         echo("***********************\n");
@@ -30,6 +35,7 @@ if (count($argv)>1){
     }
 }
 
+//parses line to XML and adds it to the main document
 function line_to_xml($line, $program, $doc, $order){
     $newline = $program->appendChild($doc->createElement('instruction'));
     $newline->setAttribute("order", $order);
@@ -54,6 +60,7 @@ function line_to_xml($line, $program, $doc, $order){
     }
 }
 
+//compares argument with expected type using determine_arg_type() function
 function check_arg($arg, $type){
     $type_value = determine_arg_type($arg);
     if ($type_value[0]==$type){
@@ -64,6 +71,7 @@ function check_arg($arg, $type){
     }
 }
 
+//checks, whether argument is in <symb> category
 function check_symb($arg){
     if (check_arg($arg, "var") == 1){
         if (check_arg($arg, "bool") == 1){
@@ -78,18 +86,21 @@ function check_symb($arg){
     }
 }
 
+//checks, whether argument is <var>
 function check_var($arg){
     if (check_arg($arg, "var") == 1){
         exit(23);
     }
 }
 
+//checks, whether argument is <label>
 function check_label($arg){
     if (check_arg($arg, "label") == 1){
         exit(23);
     }
 }
 
+//checks, whether argument is <type>
 function check_type($arg){
     if ($arg != "string"){
         if ($arg != "int"){
@@ -100,6 +111,8 @@ function check_type($arg){
     }
 }
 
+//determines argument type and parses argument
+//return: $type_value[] array containing argument type and parsed argument itself
 function determine_arg_type($arg){
     $type_value = [];
     if (preg_match("/^GF@|LF@|TF@/", $arg)){
@@ -154,15 +167,22 @@ function determine_arg_type($arg){
     }
 }
 
+//main loop for reading input
 while ($f = fgets(STDIN)){
+    
+    //remove comments
     $f = preg_replace("/#.*/", '', $f);
+
+    //check for empty lines
     if (preg_match("/^\s*$/", $f)){
         continue;
     }
+
     $f = rtrim($f);
     $f = trim(preg_replace('/\s\s+/', ' ', str_replace("\n", " ", $f)));
     $array = explode(' ', $f);
 
+    //check for header
     if ($header == false){
         if (strcmp($array[0], ".IPPcode23") == 0){
             $header = true;
@@ -275,7 +295,9 @@ while ($f = fgets(STDIN)){
             }
 
             check_var($array[1]);
-            
+
+            check_type($array[2]);
+            /*
             if ($array[2] != "string"){
                 if ($array[2] != "int"){
                     if ($array[2] != "bool"){
@@ -283,6 +305,7 @@ while ($f = fgets(STDIN)){
                     }
                 }
             }
+            */
             $newline = $program->appendChild($doc->createElement('instruction'));
             $newline->setAttribute("order", $order);
             $newline->setAttribute("opcode", $array[0]);
@@ -319,6 +342,7 @@ while ($f = fgets(STDIN)){
     }
 }
 
+//print final XML document
 echo $doc->saveXML();
 
 ?>
