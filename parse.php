@@ -1,4 +1,7 @@
 <?php
+//1. project for IPP 2022/2023
+//author: Timotej Halenar
+//login: xhalen00
 ini_set('display_errors', 'stderr');
 
 $doc = new DOMDocument('1.0', 'UTF-8');
