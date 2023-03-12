@@ -12,6 +12,7 @@ $header = false;
 $program = $doc->appendChild($doc->createElement('program'));
 $program->setAttribute("language", "IPPcode23");
 
+//look for --help option
 if (count($argv)>1){
 
     if (count($argv)!=2){
