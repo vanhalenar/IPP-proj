@@ -39,12 +39,26 @@ for inst in root:
             sys.exit(32)                        #gotta look into this
 
 factory = IC.InstructionFactory()
-program = IC.Program()
+program = IC.program
 
 for inst in root:
-    current = factory.create_instruction(inst.attrib["opcode"])
+    current = factory.create_instruction(inst.attrib["opcode"], int(inst.attrib["order"]))
+    for i in inst:
+        if (i.attrib["type"] == "int"):
+            current.add_argument(i.attrib["type"], int(i.text))
+        else:
+            current.add_argument(i.attrib["type"], i.text)
+    
+    if (inst.attrib["opcode"] == "LABEL"):
+        program.add_label(current.args[0].get("arg_value"), current.order-1)
     program.add_instruction(current)
 
 
-for inst in program.instructions:
-    inst.execute()
+inst_count = len(program.instructions)
+
+
+while (program.instruction_index < inst_count):
+    program.instructions[program.instruction_index].execute()
+    program.incr_instr_index()
+
+#print(program.labels)
