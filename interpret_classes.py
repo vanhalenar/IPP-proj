@@ -41,6 +41,7 @@ class Program():
         self.local_frame = None
         self.instruction_index = 0
         self.labels = dict()
+        self.call_stack = []
 
     def add_instruction(self, instr):
         self.instructions.append(instr)
@@ -88,6 +89,12 @@ class Program():
     
     def incr_instr_index(self):
         self.instruction_index += 1
+    
+    def call_stack_push(self, value):
+        self.call_stack.append(value)
+    
+    def call_stack_pop(self):
+        return self.call_stack.pop()
         
 
 program = Program()
@@ -102,6 +109,8 @@ class InstructionFactory():
             return PUSHFRAME(opcode, order)
         elif opcode == "POPFRAME":
             return POPFRAME(opcode, order)
+        elif opcode == "RETURN":
+            return RETURN(opcode, order)
         elif opcode == "DEFVAR":
             return DEFVAR(opcode, order)
         elif opcode == "LABEL":
@@ -120,6 +129,8 @@ class InstructionFactory():
             return SUB(opcode, order)
         elif opcode == "MUL":
             return MUL(opcode, order)
+        elif opcode == "CALL":
+            return CALL(opcode, order)
         
 
 class WRITE(Instruction):
@@ -321,4 +332,17 @@ class LABEL(Instruction):
         label_name = self.args[0].get("arg_value")
         label_line = program.get_current_line()
         program.add_label(label_name, label_line)
+
+class CALL(Instruction):
+    arg_num = 1
+    def execute(self):
+        label_name = self.args[0].get("arg_value")
+        program.call_stack_push(self.order+2) #i can explain
+        program.instruction_index = program.labels[label_name]
+
+class RETURN(Instruction):
+    arg_num = 0
+    def execute(self):
+        program.instruction_index = program.call_stack_pop()
+
         
