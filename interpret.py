@@ -80,7 +80,6 @@ for inst in root:
 
 inst_count = len(program.instructions)
 
-
 while (program.instruction_index < inst_count):
     program.instructions[program.instruction_index].execute()
     program.incr_instr_index()

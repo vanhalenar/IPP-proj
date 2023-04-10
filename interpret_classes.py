@@ -255,7 +255,6 @@ class DEFVAR(Instruction):
         else:
             pass #handle error
 
-#MOVE <var> <symb>
 class MOVE(Instruction):
     arg_num = 2
     def execute(self):
