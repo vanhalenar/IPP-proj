@@ -14,7 +14,7 @@ class Instruction:
         self.args = []
         Instruction.inst_counter += 1
         if (order != Instruction.inst_counter):
-            print("wrong order!")               #remove this before submitting
+            #print("wrong order!")               #remove this before submitting
             sys.exit(32)
         self.order = Instruction.inst_counter
         
@@ -37,7 +37,7 @@ class Program():
         self.instructions = []
         self.frames_stack = []      #append() to push, pop() to pop
         self.global_frame = dict()
-        self.temporary_frame = dict()
+        self.temporary_frame = None
         self.local_frame = None
         self.instruction_index = 0
         self.labels = dict()
@@ -51,25 +51,39 @@ class Program():
         self.temporary_frame = dict()
     
     def push_frame(self):
-        self.frames_stack.append(self.temporary_frame)
-        self.local_frame = self.frames_stack[-1]
+        if self.temporary_frame is not None:
+            self.frames_stack.append(self.temporary_frame)
+            self.local_frame = self.frames_stack[-1]
+            self.temporary_frame = None
+        else:
+            sys.exit(55)
     
     def pop_frame(self):
-        self.temporary_frame = self.frames_stack.pop()
-        if self.frames_stack:
-            self.local_frame = self.frames_stack[-1]
+        if self.local_frame is not None:
+            self.temporary_frame = self.frames_stack.pop()
+            if self.frames_stack:
+                self.local_frame = self.frames_stack[-1]
+            else:
+                self.local_frame = None
         else:
-            self.local_frame = None
+            sys.exit(55)
     
     def get_variable(self, var):
         if (re.match(r"^GF@", var)):
             return program.global_frame[var[3:]]
         elif (re.match(r"^LF@", var)):
-            return program.local_frame[var[3:]]
+            if (program.local_frame is not None):
+                return program.local_frame[var[3:]]
+            else:
+                sys.exit(55)
         elif (re.match(r"^TF@", var)):
-            return program.temporary_frame[var[3:]]
+            if (program.temporary_frame is not None):
+                return program.temporary_frame[var[3:]]
+            else:
+                sys.exit(55)
         else:
             print("bad, very bad") #change
+            sys.exit() #what code
     
     def save_to_variable(self, var, symb):
         if (re.match(r"^GF@", var)):
@@ -80,6 +94,7 @@ class Program():
             program.temporary_frame[var[3:]] = symb
         else:
             print("bad, very bad") #change
+            sys.exit() #figure this out
     
     def add_label(self, label_name, label_num):
         self.labels[label_name] = label_num
@@ -109,10 +124,16 @@ class InstructionFactory():
             return PUSHFRAME(opcode, order)
         elif opcode == "POPFRAME":
             return POPFRAME(opcode, order)
+        elif opcode == "INT2CHAR":
+            return INT2CHAR(opcode, order)
+        elif opcode == "STR2INT":
+            return STR2INT(opcode, order)
         elif opcode == "RETURN":
             return RETURN(opcode, order)
         elif opcode == "DEFVAR":
             return DEFVAR(opcode, order)
+        elif opcode == "CONCAT":
+            return CONCAT(opcode, order)
         elif opcode == "LABEL":
             return LABEL(opcode, order)
         elif opcode == "JUMP":
@@ -123,14 +144,28 @@ class InstructionFactory():
             return READ(opcode, order)
         elif opcode == "IDIV":
             return IDIV(opcode, order)
+        elif opcode == "CALL":
+            return CALL(opcode, order)
+        elif opcode == "AND":
+            return AND(opcode, order)
         elif opcode == "ADD":
             return ADD(opcode, order)
         elif opcode == "SUB":
             return SUB(opcode, order)
         elif opcode == "MUL":
             return MUL(opcode, order)
-        elif opcode == "CALL":
-            return CALL(opcode, order)
+        elif opcode == "NOT":
+            return NOT(opcode, order)
+        elif opcode == "EQ":
+            return EQ(opcode, order)
+        elif opcode == "LT":
+            return LT(opcode, order)
+        elif opcode == "GT":
+            return GT(opcode, order)
+        elif opcode == "OR":
+            return OR(opcode, order)
+        else:
+            sys.exit(32)
         
 
 class WRITE(Instruction):
@@ -140,9 +175,9 @@ class WRITE(Instruction):
 
         if (arg["arg_type"] == "var"):
             variable = program.get_variable(arg["arg_value"])
-            print(variable["arg_value"])
+            print(variable["arg_value"], end='')
         else:    
-            print(self.args[0].get("arg_value"), end='')
+            print(arg["arg_value"], end='')
 
 class CREATEFRAME(Instruction):
     arg_num = 0
@@ -172,17 +207,22 @@ class DEFVAR(Instruction):
                 sys.exit(52)
 
         elif (re.match(r"^LF@", var_name_frame)):
-            if var_name not in program.local_frame.keys():
-                program.local_frame[var_name] = dict(arg_type = "", arg_value = "")
+            if (program.local_frame is not None):
+                if var_name not in program.local_frame.keys():
+                    program.local_frame[var_name] = dict(arg_type = "", arg_value = "")
+                else:
+                    sys.exit(52)
             else:
-                sys.exit(52)
+                sys.exit(55)
 
         elif (re.match(r"^TF@", var_name_frame)):
-            if var_name not in program.temporary_frame.keys():
-                program.temporary_frame[var_name] = dict(arg_type = "", arg_value = "")
+            if (program.temporary_frame is not None):
+                if var_name not in program.temporary_frame.keys():
+                    program.temporary_frame[var_name] = dict(arg_type = "", arg_value = "")
+                else:
+                    sys.exit(52)
             else:
-                sys.exit(52)
-
+                sys.exit(55)
         else:
             pass #handle error
 
@@ -197,7 +237,7 @@ class MOVE(Instruction):
             symb = program.get_variable(arg2["arg_value"])
         else:
             symb = arg2
-        
+
         var_name = arg1["arg_value"]
 
         program.save_to_variable(var_name, symb)
@@ -310,12 +350,20 @@ class READ(Instruction):
     arg_num = 2
     def execute(self):
         user_input = input('enter input: ')
+
         if (self.args[1].get("arg_value") == "int"):
             try:
                 user_input = int(user_input)
                 symb = dict(arg_type = self.args[1].get("arg_value"), arg_value = user_input)
             except:
                 symb = dict(arg_type = "nil", arg_value = "nil")
+        elif (self.args[1].get("arg_value") == "bool"):
+            if (user_input == "true"):
+                symb = dict(arg_type = "bool", arg_value = "true")
+            else:
+                symb = dict(arg_type = "bool", arg_value = "false")
+        elif (self.args[1].get("arg_value") == "string"):
+            symb = dict(arg_type = "string", arg_value = user_input)
         
         program.save_to_variable(self.args[0].get("arg_value"), symb)
 
@@ -345,4 +393,226 @@ class RETURN(Instruction):
     def execute(self):
         program.instruction_index = program.call_stack_pop()
 
+class EQ(Instruction):
+    arg_num = 3
+    def execute(self):
+        arg1 = self.args[0]
+        arg2 = self.args[1]
+        arg3 = self.args[2]
+
         
+
+        if (arg2["arg_type"] == "var"):
+            symb2 = program.get_variable(arg2["arg_value"])
+        else:
+            symb2 = arg2
+        
+        if (arg3["arg_type"] == "var"):
+            symb3 = program.get_variable(arg1["arg_value"])
+        else:
+            symb3 = arg3
+
+        if (symb2["arg_type"] != symb3["arg_type"]):
+            symb = dict(arg_type = "bool", arg_value = "false")
+            program.save_to_variable(arg1["arg_value"], symb)
+            return
+        
+        if (symb2["arg_value"] == symb3["arg_value"]):
+            symb = dict(arg_type = "bool", arg_value = "true")
+        else:
+            symb = dict(arg_type = "bool", arg_value = "false")
+            
+        program.save_to_variable(arg1["arg_value"], symb)
+
+class GT(Instruction):
+    arg_num = 3
+    def execute(self):
+        arg1 = self.args[0]
+        arg2 = self.args[1]
+        arg3 = self.args[2]
+
+        
+
+        if (arg2["arg_type"] == "var"):
+            symb2 = program.get_variable(arg2["arg_value"])
+        else:
+            symb2 = arg2
+        
+        if (arg3["arg_type"] == "var"):
+            symb3 = program.get_variable(arg1["arg_value"])
+        else:
+            symb3 = arg3
+
+        if (symb2["arg_type"] != symb3["arg_type"]):
+            symb = dict(arg_type = "bool", arg_value = "false")
+            program.save_to_variable(arg1["arg_value"], symb)
+            return
+        
+        if (symb2["arg_value"] > symb3["arg_value"]):
+            symb = dict(arg_type = "bool", arg_value = "true")
+        else:
+            symb = dict(arg_type = "bool", arg_value = "false")
+            
+        program.save_to_variable(arg1["arg_value"], symb)
+
+
+class LT(Instruction):
+    arg_num = 3
+    def execute(self):
+        arg1 = self.args[0]
+        arg2 = self.args[1]
+        arg3 = self.args[2]
+
+        
+
+        if (arg2["arg_type"] == "var"):
+            symb2 = program.get_variable(arg2["arg_value"])
+        else:
+            symb2 = arg2
+        
+        if (arg3["arg_type"] == "var"):
+            symb3 = program.get_variable(arg1["arg_value"])
+        else:
+            symb3 = arg3
+
+        if (symb2["arg_type"] != symb3["arg_type"]):
+            symb = dict(arg_type = "bool", arg_value = "false")
+            program.save_to_variable(arg1["arg_value"], symb)
+            return
+        
+        if (symb2["arg_value"] < symb3["arg_value"]):
+            symb = dict(arg_type = "bool", arg_value = "true")
+        else:
+            symb = dict(arg_type = "bool", arg_value = "false")
+            
+        program.save_to_variable(arg1["arg_value"], symb)
+
+class AND(Instruction):
+    arg_num = 3
+    def execute(self):
+        arg1 = self.args[0]
+        arg2 = self.args[1]
+        arg3 = self.args[2]
+
+        if (arg2["arg_type"] == "var"):
+            symb2 = program.get_variable(arg2["arg_value"])
+        else:
+            symb2 = arg2
+        if (arg3["arg_type"] == "var"):
+            symb3 = program.get_variable(arg3["arg_value"])
+        else:
+            symb3 = arg3
+        
+        if (symb2["arg_type"] != "bool" or symb3["arg_type"] != "bool"):
+            sys.exit(53)
+
+        result = symb2["arg_value"] and symb3["arg_value"]
+
+        symb = dict(arg_type = "bool", arg_value = result)
+
+        program.save_to_variable(arg1["arg_value"], symb)
+
+class OR(Instruction):
+    arg_num = 3
+    def execute(self):
+        arg1 = self.args[0]
+        arg2 = self.args[1]
+        arg3 = self.args[2]
+
+        if (arg2["arg_type"] == "var"):
+            symb2 = program.get_variable(arg2["arg_value"])
+        else:
+            symb2 = arg2
+        if (arg3["arg_type"] == "var"):
+            symb3 = program.get_variable(arg3["arg_value"])
+        else:
+            symb3 = arg3
+        
+        if (symb2["arg_type"] != "bool" or symb3["arg_type"] != "bool"):
+            sys.exit(53)
+
+        result = symb2["arg_value"] or symb3["arg_value"]
+
+        symb = dict(arg_type = "bool", arg_value = result)
+
+        program.save_to_variable(arg1["arg_value"], symb)
+
+class NOT(Instruction):
+    arg_num = 2
+    def execute(self):
+        arg2 = self.args[1]
+        arg1 = self.args[0]
+
+        if (arg2["arg_type"] == "var"):
+            symb2 = program.get_variable(arg2["arg_value"])
+        else:
+            symb2 = arg2
+
+        if (symb2["arg_type"] != "bool"):
+            sys.exit(53)
+
+        symb = dict(arg_type = "bool", arg_value = not symb2["arg_value"])
+
+        program.save_to_variable(arg1["arg_value"], symb)
+
+class INT2CHAR(Instruction):
+    arg_num = 2
+    def execute(self):
+        arg1 = self.args[0]
+        arg2 = self.args[1]
+
+        if (arg2["arg_type"] == "var"):
+            symb2 = program.get_variable(arg2["arg_value"])
+        else:
+            symb2 = arg2
+        
+        if (symb2["arg_type"] != "int"):
+            sys.exit(53)
+
+        symb = dict(arg_type = "string", arg_value = chr(symb2["arg_value"]))
+
+        program.save_to_variable(arg1["arg_value"], symb)
+
+class STR2INT(Instruction):
+    arg_num = 2
+    def execute(self):
+        arg1 = self.args[0]
+        arg2 = self.args[1]
+
+        if (arg2["arg_type"] == "var"):
+            symb2 = program.get_variable(arg2["arg_value"])
+        else:
+            symb2 = arg2
+        
+        if (symb2["arg_type"] != "string"):
+            sys.exit(53)
+
+        symb = dict(arg_type = "string", arg_value = ord(symb2["arg_value"]))
+
+        program.save_to_variable(arg1["arg_value"], symb)
+
+class CONCAT(Instruction):
+    arg_num = 3
+    def execute(self):
+        dest_var_name = self.args[0].get("arg_value")
+        arg1 = self.args[1]
+        arg2 = self.args[2]
+
+        if (arg1["arg_type"] == "var"):
+            symb1 = program.get_variable(arg1["arg_value"])
+        else:
+            symb1 = arg1
+
+        if (arg2["arg_type"] == "var"):
+            symb2 = program.get_variable(arg2["arg_value"])
+        else:
+            symb2 = arg2        
+
+        if (symb1["arg_type"] != "string" or symb2["arg_type"] != "string"):
+            sys.exit(53)
+
+        result_string = symb1["arg_value"] + symb2["arg_value"]
+        
+        symb = dict(arg_type = "string", arg_value = result_string)
+
+        program.save_to_variable(dest_var_name, symb)

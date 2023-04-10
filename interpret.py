@@ -14,15 +14,20 @@ args = parser.parse_args()
 
 if (args.input):
     inputfile = args.input
+    sys.stdin = open(inputfile, 'r')
 if (args.source):
     sourcefile = args.source
 
 #what do if no source or input
 if not(args.input or args.source):
     print("no source or input specified")
+    sys.exit(1)
     #tree=ET.parse(STDIN) or something like that?
 else:
-    tree=ET.parse(sourcefile)
+    try:
+        tree=ET.parse(sourcefile)
+    except:
+        sys.exit(31)
 
 root=tree.getroot()
 
@@ -34,18 +39,37 @@ for inst in root:
     attributes=list(inst.attrib.keys())
     if not('order' in attributes and 'opcode' in attributes):
         sys.exit(32)                            #same here
+    arg_count = 0
     for arg in inst:
         if not(re.match(r"arg[123]", arg.tag)):
             sys.exit(32)                        #gotta look into this
+        arg_count += 1
+        arg_number = int(arg.tag[3:])
+        if (arg_number != arg_count):
+            sys.exit(32)
 
 factory = IC.InstructionFactory()
 program = IC.program
 
 for inst in root:
-    current = factory.create_instruction(inst.attrib["opcode"], int(inst.attrib["order"]))
+    try:
+        order = int(inst.attrib["order"])
+    except:
+        sys.exit(32)
+    current = factory.create_instruction(inst.attrib["opcode"], order)
     for i in inst:
         if (i.attrib["type"] == "int"):
-            current.add_argument(i.attrib["type"], int(i.text))
+            try:
+                int_text = int(i.text)
+            except:
+                sys.exit(32)
+            current.add_argument("int", int_text)
+        elif (i.attrib["type"] == "bool"):
+            if (i.text == "true"):
+                bool_text = True
+            else:
+                bool_text = False
+            current.add_argument("bool", bool_text)
         else:
             current.add_argument(i.attrib["type"], i.text)
     
