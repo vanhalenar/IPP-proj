@@ -97,7 +97,12 @@ class Program():
             sys.exit() #figure this out
     
     def add_label(self, label_name, label_num):
-        self.labels[label_name] = label_num
+        if (label_name not in self.labels.keys()):
+            self.labels[label_name] = label_num
+        elif (self.labels[label_name] == label_num):
+            pass
+        else:
+            sys.exit(52)
     
     def get_current_line(self):
         return self.instruction_index
@@ -110,6 +115,7 @@ class Program():
     
     def call_stack_pop(self):
         return self.call_stack.pop()
+
         
 
 program = Program()
@@ -122,6 +128,10 @@ class InstructionFactory():
             return CREATEFRAME(opcode, order)
         elif opcode == "PUSHFRAME":
             return PUSHFRAME(opcode, order)
+        elif opcode == "JUMPIFNEQ":
+            return JUMPIFNEQ(opcode, order)
+        elif opcode == "JUMPIFEQ":
+            return JUMPIFEQ(opcode, order)
         elif opcode == "POPFRAME":
             return POPFRAME(opcode, order)
         elif opcode == "INT2CHAR":
@@ -130,12 +140,20 @@ class InstructionFactory():
             return STR2INT(opcode, order)
         elif opcode == "RETURN":
             return RETURN(opcode, order)
+        elif opcode == "GETCHAR":
+            return GETCHAR(opcode, order)
+        elif opcode == "SETCHAR":
+            return SETCHAR(opcode, order)
         elif opcode == "DEFVAR":
             return DEFVAR(opcode, order)
         elif opcode == "CONCAT":
             return CONCAT(opcode, order)
+        elif opcode == "STRLEN":
+            return STRLEN(opcode, order)
         elif opcode == "LABEL":
             return LABEL(opcode, order)
+        elif opcode == "TYPE":
+            return TYPE(opcode, order)
         elif opcode == "JUMP":
             return JUMP(opcode, order)
         elif opcode == "MOVE":
@@ -175,9 +193,20 @@ class WRITE(Instruction):
 
         if (arg["arg_type"] == "var"):
             variable = program.get_variable(arg["arg_value"])
-            print(variable["arg_value"], end='')
         else:    
-            print(arg["arg_value"], end='')
+            variable = arg
+        string = variable["arg_value"]
+
+        if (variable["arg_type"] == "string"):
+            pattern = r'\\([0-9]{3})'
+            escape_seqs = re.findall(pattern, string)
+
+            for escape_seq in escape_seqs:
+                char_code = int(escape_seq)
+                ascii_char = chr(char_code)
+                string = string.replace('\\' + escape_seq, ascii_char)
+
+        print(string, end='')
 
 class CREATEFRAME(Instruction):
     arg_num = 0
@@ -202,7 +231,7 @@ class DEFVAR(Instruction):
 
         if (re.match(r"^GF@", var_name_frame)):
             if var_name not in program.global_frame.keys():
-                program.global_frame[var_name] = dict(arg_type = "", arg_value = "")
+                program.global_frame[var_name] = dict(arg_type = None, arg_value = None)
             else:
                 sys.exit(52)
 
@@ -372,7 +401,10 @@ class JUMP(Instruction):
     def execute(self):
         label_name = self.args[0].get("arg_value")
 
-        program.instruction_index = program.labels[label_name]
+        if (label_name in program.labels.keys()):
+            program.instruction_index = program.labels[label_name]
+        else:
+            sys.exit(52)
 
 class LABEL(Instruction):
     arg_num = 1
@@ -616,3 +648,145 @@ class CONCAT(Instruction):
         symb = dict(arg_type = "string", arg_value = result_string)
 
         program.save_to_variable(dest_var_name, symb)
+
+class STRLEN(Instruction):
+    arg_num = 2
+    def execute(self):
+        dest_var_name = self.args[0].get("arg_value")
+        arg1 = self.args[1]
+
+        if (arg1["arg_type"] == "var"):
+            symb1 = program.get_variable(arg1["arg_value"])
+        else:
+            symb1 = arg1
+        
+        if (symb1["arg_type"] != "string"):
+            sys.exit(53)
+
+        symb = dict(arg_type = "string", arg_value = len(symb1["arg_value"]))
+
+        program.save_to_variable(dest_var_name, symb)
+
+class GETCHAR(Instruction):
+    arg_num = 3
+    def execute(self):
+        dest_var_name = self.args[0].get("arg_value")
+        arg1 = self.args[1]
+        arg2 = self.args[2]
+
+        if (arg1["arg_type"] == "var"):
+            symb1 = program.get_variable(arg1["arg_value"])
+        else:
+            symb1 = arg1
+
+        if (arg2["arg_type"] == "var"):
+            symb2 = program.get_variable(arg2["arg_value"])
+        else:
+            symb2 = arg2
+        
+        if (symb2["arg_type"] != "int" or symb1["arg_type"] != "string"):
+            sys.exit(53)
+        
+        if (symb2["arg_value"] >= len(symb1["arg_value"])):
+            sys.exit(58)
+
+        symb = dict(arg_type = "string", arg_value = symb1["arg_value"][symb2["arg_value"]])
+
+        program.save_to_variable(dest_var_name, symb)
+        
+class SETCHAR(Instruction):
+    arg_num = 3
+    def execute(self):
+        arg1 = self.args[0]
+        arg2 = self.args[1]
+        arg3 = self.args[2]
+
+        if (arg2["arg_type"] == "var"):
+            symb2 = program.get_variable(arg2["arg_value"])
+        else:
+            symb2 = arg2
+
+        if (arg3["arg_type"] == "var"):
+            symb3 = program.get_variable(arg3["arg_value"])
+        else:
+            symb3 = arg3
+
+        symb1 = program.get_variable(arg1["arg_value"])
+
+        if (symb2["arg_type"] != "int" or symb3["arg_type"] != "string"):
+            sys.exit(53)
+        
+        if (symb2["arg_value"] >= len(symb1["arg_value"])):
+            sys.exit(58)
+
+        str_list = list(symb1["arg_value"])
+        str_list[symb2["arg_value"]] = symb3["arg_value"][0]
+        str_replaced = ''.join(str_list)
+
+        symb1 = dict(arg_type = "string", arg_value = str_replaced)
+
+        program.save_to_variable(arg1["arg_value"], symb1)
+
+class TYPE(Instruction):
+    arg_num = 2
+    def execute(self):
+        arg1 = self.args[0]
+        arg2 = self.args[1]
+
+        if (arg2["arg_type"] == "var"):
+            symb2 = program.get_variable(arg2["arg_value"])
+        else:
+            symb2 = arg2
+
+        if (symb2["arg_value"] == None):
+           symb = dict(arg_type = "string", arg_value = "")
+        else:
+            symb = dict(arg_type = "string", arg_value = symb2["arg_type"])
+
+        program.save_to_variable(arg1["arg_value"], symb)
+
+class JUMPIFEQ(Instruction):
+    arg_num = 3
+    def execute(self):
+        label_name = self.args[0]["arg_value"]
+        arg1 = self.args[1]
+        arg2 = self.args[2]
+
+        if (arg2["arg_type"] == "var"):
+            symb2 = program.get_variable(arg2["arg_value"])
+        else:
+            symb2 = arg2
+
+        if (arg1["arg_type"] == "var"):
+            symb1 = program.get_variable(arg1["arg_value"])
+        else:
+            symb1 = arg1
+        
+        if (symb1["arg_value"] == symb2["arg_value"]):
+            if (label_name in program.labels.keys()):
+                program.instruction_index = program.labels[label_name]
+            else:
+                sys.exit(52)
+
+class JUMPIFNEQ(Instruction):
+    arg_num = 3
+    def execute(self):
+        label_name = self.args[0]["arg_value"]
+        arg1 = self.args[1]
+        arg2 = self.args[2]
+
+        if (arg2["arg_type"] == "var"):
+            symb2 = program.get_variable(arg2["arg_value"])
+        else:
+            symb2 = arg2
+
+        if (arg1["arg_type"] == "var"):
+            symb1 = program.get_variable(arg1["arg_value"])
+        else:
+            symb1 = arg1
+        
+        if (symb1["arg_value"] != symb2["arg_value"]):
+            if (label_name in program.labels.keys()):
+                program.instruction_index = program.labels[label_name]
+            else:
+                sys.exit(52)
