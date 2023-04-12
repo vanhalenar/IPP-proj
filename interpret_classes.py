@@ -9,24 +9,29 @@ class Argument:
 class Instruction:
     inst_counter = 0
     arg_num = 0
+    order_numbers = []
     def __init__(self, opcode, order) -> None:
         self.opcode = opcode
         self.args = []
         Instruction.inst_counter += 1
-        if (order != Instruction.inst_counter):
-            #print("wrong order!")               #remove this before submitting
+        self.order = order
+        if order in Instruction.order_numbers:
             sys.exit(32)
-        self.order = Instruction.inst_counter
+        Instruction.order_numbers.append(order)
+        if order < 1:
+            sys.exit(32)
         
 
-    def add_argument(self, typ, value):
-        self.args.append(dict(arg_type = typ, arg_value = value))
+    def add_argument(self, typ, value, index):
+        #self.args.append(dict(arg_type = typ, arg_value = value))
+        self.args.insert(index, dict(arg_type = typ, arg_value = value))
     
     def execute():
         print("not implemented!")
     
-    def check_and_execute():
-        pass
+    def check_arg_quantity(self):
+        if self.__class__.arg_num != len(self.args):
+            sys.exit(32)
 
 class Program():
     def __new__(cls):
@@ -136,20 +141,22 @@ class InstructionFactory():
             return POPFRAME(opcode, order)
         elif opcode == "INT2CHAR":
             return INT2CHAR(opcode, order)
-        elif opcode == "STR2INT":
+        elif opcode == "STRI2INT":
             return STR2INT(opcode, order)
-        elif opcode == "RETURN":
-            return RETURN(opcode, order)
         elif opcode == "GETCHAR":
             return GETCHAR(opcode, order)
         elif opcode == "SETCHAR":
             return SETCHAR(opcode, order)
+        elif opcode == "RETURN":
+            return RETURN(opcode, order)
         elif opcode == "DEFVAR":
             return DEFVAR(opcode, order)
         elif opcode == "CONCAT":
             return CONCAT(opcode, order)
         elif opcode == "STRLEN":
             return STRLEN(opcode, order)
+        elif opcode == "DPRINT":
+            return DPRINT(opcode, order)
         elif opcode == "LABEL":
             return LABEL(opcode, order)
         elif opcode == "TYPE":
@@ -164,6 +171,8 @@ class InstructionFactory():
             return IDIV(opcode, order)
         elif opcode == "CALL":
             return CALL(opcode, order)
+        elif opcode == "EXIT":
+            return EXIT(opcode, order)
         elif opcode == "AND":
             return AND(opcode, order)
         elif opcode == "ADD":
@@ -195,7 +204,16 @@ class WRITE(Instruction):
             variable = program.get_variable(arg["arg_value"])
         else:    
             variable = arg
+        
+        if (variable["arg_type"] == "nil"):
+            print("", end='')
+            return
+
         string = variable["arg_value"]
+
+        if (variable["arg_type"] == "bool"):
+            print(str(string).lower(), end='')
+            return
 
         if (variable["arg_type"] == "string"):
             pattern = r'\\([0-9]{3})'
@@ -377,7 +395,15 @@ class IDIV(Instruction):
 class READ(Instruction):
     arg_num = 2
     def execute(self):
-        user_input = input('enter input: ')
+        try:
+            user_input = input()
+        except:
+            symb = dict(arg_type = "nil", arg_value = "nil")
+            program.save_to_variable(self.args[0].get("arg_value"), symb)
+            return
+
+        if (self.args[1]["arg_type"] != "type"):
+            sys.exit(32)
 
         if (self.args[1].get("arg_value") == "int"):
             try:
@@ -392,6 +418,8 @@ class READ(Instruction):
                 symb = dict(arg_type = "bool", arg_value = "false")
         elif (self.args[1].get("arg_value") == "string"):
             symb = dict(arg_type = "string", arg_value = user_input)
+        else:
+            sys.exit(32)
         
         program.save_to_variable(self.args[0].get("arg_value"), symb)
 
@@ -416,13 +444,16 @@ class CALL(Instruction):
     arg_num = 1
     def execute(self):
         label_name = self.args[0].get("arg_value")
-        program.call_stack_push(self.order+2) #i can explain
+        program.call_stack_push(self.order - 1) #i can explain
         program.instruction_index = program.labels[label_name]
 
 class RETURN(Instruction):
     arg_num = 0
     def execute(self):
-        program.instruction_index = program.call_stack_pop()
+        if (program.call_stack):
+            program.instruction_index = program.call_stack_pop()
+        else:
+            sys.exit(56)
 
 class EQ(Instruction):
     arg_num = 3
@@ -475,9 +506,10 @@ class GT(Instruction):
             symb3 = arg3
 
         if (symb2["arg_type"] != symb3["arg_type"]):
-            symb = dict(arg_type = "bool", arg_value = "false")
-            program.save_to_variable(arg1["arg_value"], symb)
-            return
+            sys.exit(53)
+        
+        if (symb2["arg_type"] == "nil" or symb3["arg_type"] == "nil"):
+            sys.exit(53)
         
         if (symb2["arg_value"] > symb3["arg_value"]):
             symb = dict(arg_type = "bool", arg_value = "true")
@@ -502,14 +534,15 @@ class LT(Instruction):
             symb2 = arg2
         
         if (arg3["arg_type"] == "var"):
-            symb3 = program.get_variable(arg1["arg_value"])
+            symb3 = program.get_variable(arg3["arg_value"])
         else:
             symb3 = arg3
 
         if (symb2["arg_type"] != symb3["arg_type"]):
-            symb = dict(arg_type = "bool", arg_value = "false")
-            program.save_to_variable(arg1["arg_value"], symb)
-            return
+            sys.exit(53)
+        
+        if (symb2["arg_type"] == "nil" or symb3["arg_type"] == "nil"):
+            sys.exit(53)
         
         if (symb2["arg_value"] < symb3["arg_value"]):
             symb = dict(arg_type = "bool", arg_value = "true")
@@ -605,20 +638,34 @@ class INT2CHAR(Instruction):
         program.save_to_variable(arg1["arg_value"], symb)
 
 class STR2INT(Instruction):
-    arg_num = 2
+    arg_num = 3
     def execute(self):
         arg1 = self.args[0]
         arg2 = self.args[1]
+        arg3 = self.args[2]
 
         if (arg2["arg_type"] == "var"):
             symb2 = program.get_variable(arg2["arg_value"])
         else:
             symb2 = arg2
         
+        if (arg3["arg_type"] == "var"):
+            symb3 = program.get_variable(arg3["arg_value"])
+        else:
+            symb3 = arg3
+        
+        index = symb3["arg_value"]
+        
         if (symb2["arg_type"] != "string"):
             sys.exit(53)
+        
+        if (symb3["arg_type"] != "int"):
+            sys.exit(53)
+        
+        if (index >= len(symb2["arg_value"])):
+            sys.exit(58)
 
-        symb = dict(arg_type = "string", arg_value = ord(symb2["arg_value"]))
+        symb = dict(arg_type = "int", arg_value = ord(symb2["arg_value"][index]))
 
         program.save_to_variable(arg1["arg_value"], symb)
 
@@ -662,7 +709,7 @@ class STRLEN(Instruction):
         if (symb1["arg_type"] != "string"):
             sys.exit(53)
 
-        symb = dict(arg_type = "string", arg_value = len(symb1["arg_value"]))
+        symb = dict(arg_type = "int", arg_value = len(symb1["arg_value"]))
 
         program.save_to_variable(dest_var_name, symb)
 
@@ -789,3 +836,34 @@ class JUMPIFNEQ(Instruction):
                 program.instruction_index = program.labels[label_name]
             else:
                 sys.exit(52)
+
+class DPRINT(Instruction):
+    arg_num = 1
+    def execute(self):
+        arg1 = self.args[0]
+
+        if (arg1["arg_value"] == "var"):
+            symb = program.get_variable(arg1["arg_value"])
+        else:
+            symb = arg1
+        
+        print(symb["arg_value"], file=sys.stderr)
+
+class EXIT(Instruction):
+    arg_num = 1
+
+    def execute(self):
+        arg1 = self.args[0]
+
+        if (arg1["arg_value"] == "var"):
+            symb = program.get_variable(arg1["arg_value"])
+        else:
+            symb = arg1
+
+        if (symb["arg_type"] != "int"):
+            sys.exit(53)
+        
+        if (symb["arg_value"] > 49 or symb["arg_value"] < 0):
+            sys.exit(57)
+        
+        sys.exit(symb["arg_value"])

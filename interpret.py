@@ -39,14 +39,22 @@ for inst in root:
     attributes=list(inst.attrib.keys())
     if not('order' in attributes and 'opcode' in attributes):
         sys.exit(32)                            #same here
-    arg_count = 0
+    arg_nums = []
     for arg in inst:
         if not(re.match(r"arg[123]", arg.tag)):
             sys.exit(32)                        #gotta look into this
-        arg_count += 1
-        arg_number = int(arg.tag[3:])
-        if (arg_number != arg_count):
-            sys.exit(32)
+        arg_nums.append(int(arg.tag[3:]))
+        #arg_count += 1
+        #arg_number = int(arg.tag[3:])
+        #if (arg_number != arg_count):
+        #    sys.exit(32)
+    if len(arg_nums) != 0:
+        arg_nums = sorted(arg_nums)
+        iter = 1
+        for i in arg_nums:
+            if i != iter:
+                sys.exit(32)
+            iter += 1
 
 factory = IC.InstructionFactory()
 program = IC.program
@@ -58,20 +66,22 @@ for inst in root:
         sys.exit(32)
     current = factory.create_instruction(inst.attrib["opcode"], order)
     for i in inst:
+        number = int(i.tag[3:])
+        index = number - 1
         if (i.attrib["type"] == "int"):
             try:
                 int_text = int(i.text)
             except:
                 sys.exit(32)
-            current.add_argument("int", int_text)
+            current.add_argument("int", int_text, index)
         elif (i.attrib["type"] == "bool"):
             if (i.text == "true"):
                 bool_text = True
             else:
                 bool_text = False
-            current.add_argument("bool", bool_text)
+            current.add_argument("bool", bool_text, index)
         else:
-            current.add_argument(i.attrib["type"], i.text)
+            current.add_argument(i.attrib["type"], i.text, index)
     
     if (inst.attrib["opcode"] == "LABEL"):
         program.add_label(current.args[0].get("arg_value"), current.order-1)
@@ -80,7 +90,10 @@ for inst in root:
 
 inst_count = len(program.instructions)
 
+program.instructions = sorted(program.instructions, key=lambda instruction: instruction.order)
+
 while (program.instruction_index < inst_count):
+    program.instructions[program.instruction_index].check_arg_quantity()
     program.instructions[program.instruction_index].execute()
     program.incr_instr_index()
 
