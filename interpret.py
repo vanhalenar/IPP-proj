@@ -83,14 +83,20 @@ for inst in root:
         else:
             current.add_argument(i.attrib["type"], i.text, index)
     
-    if (inst.attrib["opcode"] == "LABEL"):
-        program.add_label(current.args[0].get("arg_value"), current.order-1)
+    #if (inst.attrib["opcode"] == "LABEL"):
+    #   program.add_label(current.args[0].get("arg_value"), current.order-1)
     program.add_instruction(current)
-
 
 inst_count = len(program.instructions)
 
 program.instructions = sorted(program.instructions, key=lambda instruction: instruction.order)
+
+iter = 0
+for i in program.instructions:
+    if i.opcode == "LABEL":
+        program.add_label(i.args[0]["arg_value"], iter)
+    iter += 1
+    
 
 while (program.instruction_index < inst_count):
     program.instructions[program.instruction_index].check_arg_quantity()

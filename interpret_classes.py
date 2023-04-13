@@ -47,6 +47,7 @@ class Program():
         self.instruction_index = 0
         self.labels = dict()
         self.call_stack = []
+        self.data_stack = []
 
     def add_instruction(self, instr):
         self.instructions.append(instr)
@@ -75,15 +76,24 @@ class Program():
     
     def get_variable(self, var):
         if (re.match(r"^GF@", var)):
-            return program.global_frame[var[3:]]
+            if (var[3:] in program.global_frame.keys()):
+                return program.global_frame[var[3:]]
+            else:
+                sys.exit(54)
         elif (re.match(r"^LF@", var)):
             if (program.local_frame is not None):
-                return program.local_frame[var[3:]]
+                if (var[3:] in program.local_frame.keys()):
+                    return program.local_frame[var[3:]]
+                else:
+                    sys.exit(54)
             else:
                 sys.exit(55)
         elif (re.match(r"^TF@", var)):
             if (program.temporary_frame is not None):
-                return program.temporary_frame[var[3:]]
+                if (var[3:] in program.temporary_frame.keys()):
+                    return program.temporary_frame[var[3:]]
+                else:
+                    sys.exit(54)
             else:
                 sys.exit(55)
         else:
@@ -92,11 +102,20 @@ class Program():
     
     def save_to_variable(self, var, symb):
         if (re.match(r"^GF@", var)):
-            program.global_frame[var[3:]] = symb
+            if (var[3:] in program.global_frame.keys()):
+                program.global_frame[var[3:]] = symb
+            else:
+                sys.exit(54)
         elif (re.match(r"^LF@", var)):
-            program.local_frame[var[3:]] = symb
+            if (var[3:] in program.local_frame.keys()):
+                program.local_frame[var[3:]] = symb
+            else:
+                sys.exit(54)
         elif (re.match(r"^TF@", var)):
-            program.temporary_frame[var[3:]] = symb
+            if (var[3:] in program.temporary_frame.keys()):
+                program.temporary_frame[var[3:]] = symb
+            else:
+                sys.exit(54)
         else:
             print("bad, very bad") #change
             sys.exit() #figure this out
@@ -119,7 +138,19 @@ class Program():
         self.call_stack.append(value)
     
     def call_stack_pop(self):
-        return self.call_stack.pop()
+        if (self.call_stack):
+            return self.call_stack.pop()
+        else:
+            sys.exit(56)
+    
+    def data_stack_push(self, symb):
+        self.data_stack.append(symb)
+    
+    def data_stack_pop(self):
+        if (self.data_stack):
+            return self.data_stack.pop()
+        else:
+            sys.exit(56)
 
         
 
@@ -159,6 +190,10 @@ class InstructionFactory():
             return DPRINT(opcode, order)
         elif opcode == "LABEL":
             return LABEL(opcode, order)
+        elif opcode == "PUSHS":
+            return PUSHS(opcode, order)
+        elif opcode == "POPS":
+            return POPS(opcode, order)
         elif opcode == "TYPE":
             return TYPE(opcode, order)
         elif opcode == "JUMP":
@@ -436,16 +471,20 @@ class JUMP(Instruction):
 class LABEL(Instruction):
     arg_num = 1
     def execute(self):
-        label_name = self.args[0].get("arg_value")
-        label_line = program.get_current_line()
-        program.add_label(label_name, label_line)
+        pass
+        #label_name = self.args[0].get("arg_value")
+        #label_line = program.get_current_line()
+        #program.add_label(label_name, label_line)
 
 class CALL(Instruction):
     arg_num = 1
     def execute(self):
         label_name = self.args[0].get("arg_value")
         program.call_stack_push(self.order - 1) #i can explain
-        program.instruction_index = program.labels[label_name]
+        if (label_name in program.labels.keys()):
+            program.instruction_index = program.labels[label_name]
+        else:
+            sys.exit(52)
 
 class RETURN(Instruction):
     arg_num = 0
@@ -470,14 +509,13 @@ class EQ(Instruction):
             symb2 = arg2
         
         if (arg3["arg_type"] == "var"):
-            symb3 = program.get_variable(arg1["arg_value"])
+            symb3 = program.get_variable(arg3["arg_value"])
         else:
             symb3 = arg3
 
-        if (symb2["arg_type"] != symb3["arg_type"]):
-            symb = dict(arg_type = "bool", arg_value = "false")
-            program.save_to_variable(arg1["arg_value"], symb)
-            return
+        if (symb2["arg_type"] != "nil" and symb3["arg_type"] != "nil"):
+            if (symb2["arg_type"] != symb3["arg_type"]):
+                sys.exit(53)
         
         if (symb2["arg_value"] == symb3["arg_value"]):
             symb = dict(arg_type = "bool", arg_value = "true")
@@ -501,7 +539,7 @@ class GT(Instruction):
             symb2 = arg2
         
         if (arg3["arg_type"] == "var"):
-            symb3 = program.get_variable(arg1["arg_value"])
+            symb3 = program.get_variable(arg3["arg_value"])
         else:
             symb3 = arg3
 
@@ -633,7 +671,13 @@ class INT2CHAR(Instruction):
         if (symb2["arg_type"] != "int"):
             sys.exit(53)
 
-        symb = dict(arg_type = "string", arg_value = chr(symb2["arg_value"]))
+        try:
+            char_value = chr(symb2["arg_value"])
+        except:
+            sys.exit(58)
+
+        symb = dict(arg_type = "string", arg_value = char_value)
+        
 
         program.save_to_variable(arg1["arg_value"], symb)
 
@@ -808,6 +852,10 @@ class JUMPIFEQ(Instruction):
         else:
             symb1 = arg1
         
+        if (symb2["arg_type"] != "nil" and symb1["arg_type"] != "nil"):
+            if (symb1["arg_type"] != symb2["arg_type"]):
+                sys.exit(53)
+        
         if (symb1["arg_value"] == symb2["arg_value"]):
             if (label_name in program.labels.keys()):
                 program.instruction_index = program.labels[label_name]
@@ -831,6 +879,10 @@ class JUMPIFNEQ(Instruction):
         else:
             symb1 = arg1
         
+        if (symb2["arg_type"] != "nil" and symb1["arg_type"] != "nil"):
+            if (symb1["arg_type"] != symb2["arg_type"]):
+                sys.exit(53)
+
         if (symb1["arg_value"] != symb2["arg_value"]):
             if (label_name in program.labels.keys()):
                 program.instruction_index = program.labels[label_name]
@@ -867,3 +919,27 @@ class EXIT(Instruction):
             sys.exit(57)
         
         sys.exit(symb["arg_value"])
+
+class PUSHS(Instruction):
+    arg_num = 1
+    def execute(self):
+        arg1 = self.args[0]
+
+        if (arg1["arg_value"] == "var"):
+            symb = program.get_variable(arg1["arg_value"])
+        else:
+            symb = arg1
+        
+        program.data_stack_push(symb)
+
+class POPS(Instruction):
+    arg_num = 1
+    def execute(self):
+        var_name = self.args[0]["arg_value"]
+
+        symb = program.data_stack_pop()
+
+        program.save_to_variable(var_name, symb)
+
+        
+        
