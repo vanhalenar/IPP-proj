@@ -151,6 +151,9 @@ class Program():
     
     def get_current_line(self):
         return self.instruction_index
+
+    def jump_to_index(self, index):
+        self.instruction_index = index
     
     def incr_instr_index(self):
         self.instruction_index += 1
@@ -172,10 +175,9 @@ class Program():
             return self.data_stack.pop()
         else:
             sys.exit(56)
-
-        
-
-program = Program()
+    
+    def get_label_names(self):
+        return self.labels.keys()
 
 # Factory class, creates instances of instruction subclasses based on opcode
 class InstructionFactory():
@@ -441,7 +443,7 @@ class READ(Instruction):
 
     def execute(self):
         try:
-            user_input = input_open.readline().strip()
+            user_input = inputfile.readline().strip()
         except:
             symb = dict(arg_type = "nil", arg_value = "nil")
             program.save_to_variable(self.args[0].get("arg_value"), symb)
@@ -480,8 +482,8 @@ class JUMP(Instruction):
     def execute(self):
         label_name = self.args[0].get("arg_value")
 
-        if (label_name in program.labels.keys()):
-            program.instruction_index = program.labels[label_name]
+        if (label_name in program.get_label_names()):
+            program.jump_to_index(program.labels[label_name])
         else:
             sys.exit(52)
 
@@ -499,8 +501,8 @@ class CALL(Instruction):
     def execute(self):
         label_name = self.args[0].get("arg_value")
         program.call_stack_push(self.order - 1) #i can explain
-        if (label_name in program.labels.keys()):
-            program.instruction_index = program.labels[label_name]
+        if (label_name in program.get_label_names()):
+            program.jump_to_index(program.labels[label_name])
         else:
             sys.exit(52)
 
@@ -510,7 +512,7 @@ class RETURN(Instruction):
 
     def execute(self):
         if (program.call_stack):
-            program.instruction_index = program.call_stack_pop()
+            program.jump_to_index(program.call_stack_pop())
         else:
             sys.exit(56)
 # EQ <var> <symb> <symb>
@@ -782,8 +784,8 @@ class JUMPIFEQ(Instruction):
                 sys.exit(53)
         
         if (symb1["arg_value"] == symb2["arg_value"]):
-            if (label_name in program.labels.keys()):
-                program.instruction_index = program.labels[label_name]
+            if (label_name in program.get_label_names()):
+                program.jump_to_index(program.labels[label_name])
             else:
                 sys.exit(52)
 
@@ -801,8 +803,8 @@ class JUMPIFNEQ(Instruction):
                 sys.exit(53)
 
         if (symb1["arg_value"] != symb2["arg_value"]):
-            if (label_name in program.labels.keys()):
-                program.instruction_index = program.labels[label_name]
+            if (label_name in program.get_label_names()):
+                program.jump_to_index(program.labels[label_name])
             else:
                 sys.exit(52)
 
@@ -874,16 +876,16 @@ parser.add_argument('--source', help='Specify the source file')
 args = parser.parse_args()
 
 if (args.input):
-    inputfile = args.input
-    input_open = open(inputfile, 'r')
+    input_closed = args.input
+    inputfile = open(input_closed, 'r')
 else:
-    input_open = sys.stdin
+    inputfile = sys.stdin
 if (args.source):
     sourcefile = args.source
 else:
     sourcefile = sys.stdin
 
-#what do if no source or input
+
 if not(args.input or args.source):
     print("no source or input specified")
     sys.exit(1)
@@ -895,23 +897,21 @@ else:
 
 root=tree.getroot()
 
+# XML format checks
 if root.tag != 'program':
-    sys.exit(32)                                #should it be 32?
+    sys.exit(32)                                
 for inst in root:
     if inst.tag != 'instruction':
-        sys.exit(32)                            #same issue, not sure, what the exit code should be
+        sys.exit(32)                            
     attributes=list(inst.attrib.keys())
     if not('order' in attributes and 'opcode' in attributes):
-        sys.exit(32)                            #same here
+        sys.exit(32)                            
     arg_nums = []
     for arg in inst:
         if not(re.match(r"arg[123]", arg.tag)):
-            sys.exit(32)                        #gotta look into this
+            sys.exit(32)                        
         arg_nums.append(int(arg.tag[3:]))
-        #arg_count += 1
-        #arg_number = int(arg.tag[3:])
-        #if (arg_number != arg_count):
-        #    sys.exit(32)
+    
     if len(arg_nums) != 0:
         arg_nums = sorted(arg_nums)
         iter = 1
@@ -922,6 +922,9 @@ for inst in root:
 
 factory = InstructionFactory()
 
+program = Program()
+
+# Create instructions
 for inst in root:
     try:
         order = int(inst.attrib["order"])
@@ -945,22 +948,22 @@ for inst in root:
             current.add_argument("bool", bool_text, index)
         else:
             current.add_argument(i.attrib["type"], i.text, index)
-    
-    #if (inst.attrib["opcode"] == "LABEL"):
-    #   program.add_label(current.args[0].get("arg_value"), current.order-1)
+
     program.add_instruction(current)
 
 inst_count = len(program.instructions)
 
+# Sort instructions based on order number
 program.instructions = sorted(program.instructions, key=lambda instruction: instruction.order)
 
+# Look for labels and add them to the list
 iter = 0
 for i in program.instructions:
     if i.opcode == "LABEL":
         program.add_label(i.args[0]["arg_value"], iter)
     iter += 1
     
-
+# Execute each instruction
 while (program.instruction_index < inst_count):
     program.instructions[program.instruction_index].check_arg_quantity()
     program.instructions[program.instruction_index].execute()
